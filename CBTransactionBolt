@@ -1,0 +1,138 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package storm.starter.spout;
+
+
+
+import java.awt.List;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.Scanner;
+import java.util.TimeZone;
+
+import org.joda.time.LocalDateTime;
+
+import redis.clients.jedis.*;   
+import backtype.storm.topology.BasicOutputCollector;
+import backtype.storm.topology.OutputFieldsDeclarer;
+import backtype.storm.topology.base.BaseBasicBolt;
+import backtype.storm.tuple.Tuple;
+
+
+public class CBTransactionBolt extends BaseBasicBolt {
+
+	@Override
+	public void execute(Tuple tuple, BasicOutputCollector collector) {
+		Double one = (double) 1;
+		String s = tuple.getString(0);
+		String[] tokens = s.split(",");
+		String[] tokensTwo = new String[]{};
+		String[] ID = new String[]{};
+		Jedis jedis = new Jedis("localhost");
+		Boolean toWrite = true;
+		long myTime = System.currentTimeMillis();
+		long checkTime = Long.parseLong(jedis.get("time"));
+		File output = new File("dummy.txt");
+		Date date = new Date();
+		String currentDate = "";
+		SimpleDateFormat parser = new SimpleDateFormat("HH:mm");
+		try {
+			Date Five = parser.parse("5:00");
+			Date Ten = parser.parse("10:00");
+			Date Three = parser.parse("15:00");
+			Date Eight = parser.parse("20:00");
+			Date Midnight = parser.parse("24:00");
+			Date endDay = parser.parse("00:01");
+			currentDate = parser.format(date);
+			Date myDate = parser.parse(currentDate);
+			if (myDate.after(endDay) && myDate.before(Five)){
+				System.out.println("Writing to output0.txt");
+				output = new File("output0.txt");
+			}else if (myDate.after(Five) && myDate.before(Ten)){
+				System.out.println("Writing to output1.txt");
+				output = new File("output1.txt");
+			}else if (myDate.after(Ten) && myDate.before(Three)){
+				System.out.println("Writing to output2.txt");
+				output = new File("output2.txt");
+			}else if (myDate.after(Three) && myDate.before(Eight)){
+				System.out.println("Writing to output3.txt");
+				output = new File("output3.txt");
+			}else if (myDate.after(Eight) && myDate.before(Midnight)){
+				System.out.println("Writing to output4.txt");
+				output = new File("output4.txt");
+			}else{
+				System.out.println("Not writing to anywhere");
+			}
+		} catch (ParseException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+		for (int i = 0; i < tokens.length; i++){
+			tokens[i] = tokens[i].replace("{", "");
+			tokens[i] = tokens[i].replace("}", "\n");
+			//System.out.println(i + ": " + tokens[i]);
+		}
+		try{
+			if(!output.exists()){
+				System.out.println("We had to make a new file.");
+				output.createNewFile();
+			}
+
+			FileWriter fileWriter = new FileWriter(output, true);
+			BufferedWriter bufferedWriter = new BufferedWriter(fileWriter);
+			for (int i = 0; i < tokens.length; i = i + 6){
+				ID = tokens[i+1].split(":");
+				String tradeID = ID[1];
+				if (jedis.zscore("TradeIDs",tradeID) == null){
+					System.out.println("Writing this Trade ID: " + tradeID);
+					jedis.zadd("TradeIDs", 1, tradeID);
+					for (int a = i; a < i + 6; a++){
+						bufferedWriter.write(tokens[a]+"\n");
+					}
+					bufferedWriter.write("Time Written: " + currentDate +"\n");
+				}else{
+					System.out.println("Found duplicate tradeID: " + tradeID);
+				}
+			}
+			bufferedWriter.close();
+
+			System.out.println("Finished one cycle");
+		} catch(IOException e) {
+			System.out.println("COULD NOT LOG!!");
+		}
+		tokensTwo = tokens[0].split(":");
+
+		System.out.println("This is our current time: " + currentDate);;
+		System.out.print("\n\n");
+	}
+
+	@Override
+	public void declareOutputFields(OutputFieldsDeclarer ofd) {
+	}
+
+}

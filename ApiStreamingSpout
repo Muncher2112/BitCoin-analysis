@@ -1,0 +1,58 @@
+package storm.starter.spout;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.URL;
+import java.util.Map;
+
+import javax.net.ssl.HttpsURLConnection;
+
+import backtype.storm.spout.SpoutOutputCollector;
+import backtype.storm.task.TopologyContext;
+import backtype.storm.topology.OutputFieldsDeclarer;
+import backtype.storm.topology.base.BaseRichSpout;
+import backtype.storm.tuple.Fields;
+import backtype.storm.tuple.Values;
+import backtype.storm.utils.Utils;
+
+public class ApiStreamingSpout extends BaseRichSpout{
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+	SpoutOutputCollector _collector;
+	@Override
+	public void nextTuple() {
+		Utils.sleep(20000);
+		try {
+			URL u = new URL("https://api.bitfinex.com/v1/trades/btcusd?limit_trades=5");
+			HttpsURLConnection huc = (HttpsURLConnection) u.openConnection();
+			huc.setRequestMethod("GET");
+			huc.setRequestProperty("User-Agent", "Firefox");
+			System.out.println("Response code: " + huc.getResponseCode());
+			System.out.println("Response !: " + huc.getResponseMessage());
+			BufferedReader br = new BufferedReader(
+		  new InputStreamReader(huc.getInputStream()));
+			String s;
+			s = br.readLine();
+			_collector.emit(new Values(s));
+			br.close();
+
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			System.out.println("SOMETHING WENT WRONG");
+			e.printStackTrace();
+		}
+		//System.out.println("STUFF!");
+	}
+	@Override
+	public void open(Map conf, TopologyContext context,
+			SpoutOutputCollector collector) {
+		_collector = collector;
+
+	}
+	@Override
+	public void declareOutputFields(OutputFieldsDeclarer declarer) {
+		declarer.declare(new Fields("junk"));
+	}
+}
